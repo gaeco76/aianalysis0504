@@ -1,0 +1,162 @@
+.aa-vc-original-hidden {
+  display: none !important;
+}
+
+.aa-vc-chart {
+  margin: 12px 0 18px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #171717;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.aa-vc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #eeeeee;
+  background: #fafafa;
+}
+
+.aa-vc-title {
+  margin: 0;
+  color: #171717;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.aa-vc-meta {
+  flex: 0 0 auto;
+  color: #737373;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.aa-vc-body {
+  display: grid;
+  grid-template-columns: minmax(150px, 32%) minmax(0, 1fr);
+}
+
+.aa-vc-row {
+  display: contents;
+}
+
+.aa-vc-name,
+.aa-vc-value {
+  min-height: 34px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.aa-vc-row:last-child .aa-vc-name,
+.aa-vc-row:last-child .aa-vc-value {
+  border-bottom: 0;
+}
+
+.aa-vc-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 14px;
+  color: #262626;
+  font-size: 12px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.aa-vc-index {
+  flex: 0 0 auto;
+  min-width: 20px;
+  color: #a3a3a3;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.aa-vc-value {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 10px;
+}
+
+.aa-vc-bar-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 16px;
+  border-radius: 5px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.aa-vc-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 2px;
+  border-radius: inherit;
+  background: #2563eb;
+}
+
+.aa-vc-number {
+  flex: 0 0 70px;
+  color: #404040;
+  font-size: 12px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.aa-vc-value:has(.aa-vc-score) .aa-vc-number {
+  display: none;
+}
+
+.aa-vc-score {
+  flex: 0 0 70px;
+  color: #404040;
+  font-size: 12px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .aa-vc-body {
+    grid-template-columns: minmax(112px, 42%) minmax(0, 1fr);
+  }
+
+  .aa-vc-head {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .aa-vc-meta {
+    white-space: normal;
+  }
+
+  .aa-vc-name {
+    padding-left: 10px;
+    font-size: 11px;
+  }
+
+  .aa-vc-value {
+    gap: 7px;
+    padding-right: 10px;
+  }
+
+  .aa-vc-number {
+    flex-basis: 48px;
+    font-size: 11px;
+  }
+
+  .aa-vc-score {
+    flex-basis: 48px;
+    font-size: 11px;
+  }
+}
