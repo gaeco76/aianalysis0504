@@ -6,6 +6,28 @@
   const DOM_ID_ATTR = "data-aa-vc-dom-id";
   const ORIGINAL_ID_ATTR = "data-aa-vc-original-id";
   const MAX_ITEMS = 40;
+  const BREAKDOWN_MAX_ITEMS = 12;
+  const BREAKDOWN_GRID_CLASS = "aa-vc-breakdown-grid";
+
+  const breakdownChartTitles = new Set([
+    "GDPval-AA",
+    "Terminal-Bench Hard",
+    "τ²-Bench Retail",
+    "τ²-Bench Airline",
+    "τ²-Bench Telecom",
+    "𝜏²-Bench Retail",
+    "𝜏²-Bench Airline",
+    "𝜏²-Bench Telecom",
+    "AA-LCR",
+    "AA-Omniscience Accuracy",
+    "AA-Omniscience Non-Hallucination Rate",
+    "Humanity's Last Exam",
+    "GPQA Diamond",
+    "SciCode",
+    "IFBench",
+    "CritPt",
+    "MMMU-Pro"
+  ]);
 
   let enabled = true;
   let observer;
@@ -196,6 +218,7 @@
     convertSvgBarCharts();
     convertDetachedProviderCharts(scripts);
     cleanupConvertedCharts();
+    layoutBreakdownCharts();
   }
 
   function cleanupConvertedCharts() {
@@ -221,6 +244,39 @@
 
       seen.add(id);
       if (signatureValue) scopeSignatures.add(signatureValue);
+    });
+  }
+
+  function layoutBreakdownCharts() {
+    const charts = [...document.querySelectorAll(`.${VIEW_CLASS}`)]
+      .filter((chart) => chart.classList.contains("aa-vc-breakdown-chart"));
+
+    if (charts.length === 0) {
+      document.querySelectorAll(`.${BREAKDOWN_GRID_CLASS}`).forEach((grid) => grid.remove());
+      return;
+    }
+
+    let grid = charts.find((chart) => chart.parentElement?.classList.contains(BREAKDOWN_GRID_CLASS))?.parentElement;
+
+    if (!grid) {
+      grid = document.createElement("div");
+      grid.className = BREAKDOWN_GRID_CLASS;
+      charts[0].insertAdjacentElement("beforebegin", grid);
+    }
+
+    charts.forEach((chart) => {
+      if (chart.parentElement !== grid) {
+        grid.append(chart);
+      }
+    });
+
+    document.querySelectorAll(`.${BREAKDOWN_GRID_CLASS}`).forEach((candidate) => {
+      if (candidate !== grid) {
+        while (candidate.firstElementChild) {
+          grid.append(candidate.firstElementChild);
+        }
+        candidate.remove();
+      }
     });
   }
 
@@ -705,9 +761,13 @@
   }
 
   function renderChart(dataset, id) {
-    const max = Math.max(...dataset.rows.map((row) => Math.abs(row.value)), 1);
+    const rows = getRenderableRows(dataset);
+    const max = Math.max(...rows.map((row) => Math.abs(row.value)), 1);
     const wrapper = document.createElement("section");
     wrapper.className = VIEW_CLASS;
+    if (isBreakdownChart(dataset)) {
+      wrapper.classList.add("aa-vc-breakdown-chart");
+    }
     wrapper.dataset.aaVcFor = id;
     wrapper.dataset.aaVcSignature = signature(dataset);
 
@@ -720,19 +780,31 @@
 
     const meta = document.createElement("div");
     meta.className = "aa-vc-meta";
-    meta.textContent = `${dataset.rows.length} items`;
+    meta.textContent = `${rows.length} items`;
 
     head.append(title, meta);
 
     const body = document.createElement("div");
     body.className = "aa-vc-body";
 
-    dataset.rows.forEach((row, index) => {
+    rows.forEach((row, index) => {
       body.append(renderRow(row, index, max, dataset));
     });
 
     wrapper.append(head, body);
     return wrapper;
+  }
+
+  function getRenderableRows(dataset) {
+    if (isBreakdownChart(dataset)) {
+      return dataset.rows.slice(0, BREAKDOWN_MAX_ITEMS);
+    }
+
+    return dataset.rows;
+  }
+
+  function isBreakdownChart(dataset) {
+    return breakdownChartTitles.has(dataset.title);
   }
 
   function renderRow(row, index, max, dataset) {
