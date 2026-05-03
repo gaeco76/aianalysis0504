@@ -3,7 +3,7 @@
 }
 
 .aa-vc-chart {
-  margin: 12px 0 18px;
+  margin: 10px 0 14px;
   border: 1px solid #e5e5e5;
   border-radius: 8px;
   background: #ffffff;
@@ -12,12 +12,25 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+.aa-vc-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin: 10px 0 14px;
+}
+
+.aa-vc-breakdown-grid .aa-vc-chart {
+  min-width: 0;
+  margin: 0;
+}
+
 .aa-vc-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 9px 12px;
   border-bottom: 1px solid #eeeeee;
   background: #fafafa;
 }
@@ -38,6 +51,40 @@
   white-space: nowrap;
 }
 
+.aa-vc-breakdown-chart .aa-vc-body {
+  grid-template-columns: minmax(122px, 48%) minmax(0, 1fr);
+}
+
+.aa-vc-breakdown-chart .aa-vc-name,
+.aa-vc-breakdown-chart .aa-vc-value {
+  min-height: 25px;
+}
+
+.aa-vc-breakdown-chart .aa-vc-name {
+  gap: 5px;
+  padding: 3px 6px;
+  font-size: 10.5px;
+  line-height: 1.1;
+}
+
+.aa-vc-breakdown-chart .aa-vc-value {
+  gap: 5px;
+  padding: 3px 6px;
+}
+
+.aa-vc-breakdown-chart .aa-vc-number {
+  flex-basis: 34px;
+  font-size: 10.5px;
+}
+
+.aa-vc-breakdown-chart .aa-vc-index {
+  min-width: 16px;
+}
+
+.aa-vc-breakdown-chart .aa-vc-bar-track {
+  height: 12px;
+}
+
 .aa-vc-body {
   display: grid;
   grid-template-columns: minmax(150px, 32%) minmax(0, 1fr);
@@ -49,7 +96,7 @@
 
 .aa-vc-name,
 .aa-vc-value {
-  min-height: 34px;
+  min-height: 29px;
   border-bottom: 1px solid #f0f0f0;
 }
 
@@ -61,11 +108,11 @@
 .aa-vc-name {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px 7px 14px;
+  gap: 7px;
+  padding: 5px 9px 5px 12px;
   color: #262626;
   font-size: 12px;
-  line-height: 1.25;
+  line-height: 1.18;
   overflow-wrap: anywhere;
 }
 
@@ -80,14 +127,14 @@
 .aa-vc-value {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 14px 7px 10px;
+  gap: 8px;
+  padding: 5px 12px 5px 9px;
 }
 
 .aa-vc-bar-track {
   position: relative;
   flex: 1 1 auto;
-  height: 16px;
+  height: 13px;
   border-radius: 5px;
   background: #f1f5f9;
   overflow: hidden;
@@ -125,7 +172,17 @@
   white-space: nowrap;
 }
 
+@media (max-width: 980px) {
+  .aa-vc-breakdown-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 640px) {
+  .aa-vc-breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+
   .aa-vc-body {
     grid-template-columns: minmax(112px, 42%) minmax(0, 1fr);
   }
@@ -141,13 +198,13 @@
   }
 
   .aa-vc-name {
-    padding-left: 10px;
+    padding: 4px 8px;
     font-size: 11px;
   }
 
   .aa-vc-value {
-    gap: 7px;
-    padding-right: 10px;
+    gap: 6px;
+    padding: 4px 8px;
   }
 
   .aa-vc-number {
