@@ -6,6 +6,31 @@
   const DOM_ID_ATTR = "data-aa-vc-dom-id";
   const ORIGINAL_ID_ATTR = "data-aa-vc-original-id";
   const MAX_ITEMS = 40;
+  const BREAKDOWN_ITEM_LIMIT = 12;
+  const BREAKDOWN_GRID_CLASS = "aa-vc-breakdown-grid";
+  const BREAKDOWN_CARD_CLASS = "aa-vc-breakdown-card";
+  const INTEREST_MODEL_CLASS_PREFIX = "aa-vc-interest-";
+  const INTEREST_MODELS = [
+    { className: "gpt-55", pattern: /\bgpt-?5\.5\b/i },
+    { className: "claude-opus-47", pattern: /\bclaude\s+opus\s+4\.7\b/i },
+    { className: "glm-51", pattern: /\bglm-?5\.1\b/i },
+    { className: "mimo", pattern: /\bmimo\b/i }
+  ];
+  const BENCHMARK_DESCRIPTIONS = new Map([
+    ["GDPval-AA", "실제 지식 업무 수행 평가"],
+    ["Terminal-Bench Hard", "터미널 작업 해결 평가"],
+    ["𝜏²-Bench Telecom", "통신 고객 지원 대화 평가"],
+    ["AA-LCR", "긴 문서 추론 평가"],
+    ["AA-Omniscience Accuracy", "지식 정답률 평가"],
+    ["AA-Omniscience Non-Hallucination Rate", "모를 때 지어내지 않는지 평가"],
+    ["Humanity's Last Exam", "전문가급 종합 지식 시험"],
+    ["GPQA Diamond", "박사급 과학 문제 평가"],
+    ["SciCode", "과학 연구 코드 작성 평가"],
+    ["IFBench", "지시 따르기 평가"],
+    ["CritPt", "고급 물리 추론 평가"],
+    ["APEX-Agents-AA", "긴 실무형 에이전트 작업 평가"],
+    ["MMMU-Pro", "어려운 멀티모달 이해 평가"]
+  ]);
 
   let enabled = true;
   let observer;
@@ -195,6 +220,7 @@
     convertDomBarCharts();
     convertSvgBarCharts();
     convertDetachedProviderCharts(scripts);
+    annotateBenchmarkHeadings();
     cleanupConvertedCharts();
   }
 
@@ -221,6 +247,16 @@
 
       seen.add(id);
       if (signatureValue) scopeSignatures.add(signatureValue);
+    });
+
+    cleanupBreakdownGrids();
+  }
+
+  function cleanupBreakdownGrids() {
+    document.querySelectorAll(`.${BREAKDOWN_GRID_CLASS}`).forEach((grid) => {
+      if (!grid.querySelector(`.${VIEW_CLASS}.${BREAKDOWN_CARD_CLASS}`)) {
+        grid.classList.remove(BREAKDOWN_GRID_CLASS);
+      }
     });
   }
 
@@ -339,6 +375,10 @@
       if (!dataset) continue;
 
       const id = ensureDomId(original);
+      if (dataset.variant === "breakdown") {
+        markBreakdownGrid(original);
+      }
+
       original.setAttribute(ORIGINAL_ID_ATTR, id);
       original.classList.add(ORIGINAL_CLASS);
 
@@ -365,7 +405,11 @@
       const dataset = getSvgBarDataset(svg);
       if (!dataset) continue;
 
-      const original = findSvgChartBlock(svg);
+      const original = findEvaluationChartBlock(svg) || findSvgChartBlock(svg);
+      if (dataset.variant === "breakdown") {
+        markBreakdownGrid(original);
+      }
+
       const id = ensureDomId(original);
       original.setAttribute(ORIGINAL_ID_ATTR, id);
       original.classList.add(ORIGINAL_CLASS);
@@ -411,7 +455,9 @@
     const bars = getSvgBars(svg);
     const names = getSvgModelNames(svg);
     const values = getSvgValueLabels(svg);
-    const rowCount = Math.min(names.length, values.length, MAX_ITEMS);
+    const isBreakdown = isSvgBreakdownChart(svg);
+    const rowLimit = isBreakdown ? BREAKDOWN_ITEM_LIMIT : MAX_ITEMS;
+    const rowCount = Math.min(names.length, values.length, rowLimit);
 
     if (rowCount < 5) return null;
 
@@ -429,8 +475,40 @@
       title: findSvgChartTitle(svg),
       description: "",
       valueKey: "normalized-svg",
+      variant: isBreakdown ? "breakdown" : "",
       rows
     };
+  }
+
+  function isSvgBreakdownChart(svg) {
+    return Boolean(findEvaluationChartBlock(svg));
+  }
+
+  function findEvaluationChartBlock(node) {
+    let candidate = node.parentElement;
+
+    for (let depth = 0; candidate && depth < 10; depth += 1, candidate = candidate.parentElement) {
+      if (candidate.classList.contains(VIEW_CLASS) || candidate.classList.contains(ORIGINAL_CLASS)) {
+        continue;
+      }
+
+      const scope = candidate.parentElement;
+      if (hasEvaluationLink(candidate) && scope?.querySelectorAll('a[href*="/evaluations/"]').length >= 3) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  function markBreakdownGrid(original) {
+    const scope = original?.parentElement;
+    if (!scope || scope.querySelectorAll('a[href*="/evaluations/"]').length < 3) return;
+
+    const chartItems = [...scope.children].filter((child) => hasEvaluationLink(child));
+    if (chartItems.length >= 3) {
+      scope.classList.add(BREAKDOWN_GRID_CLASS);
+    }
   }
 
   function getSvgBars(svg) {
@@ -568,7 +646,8 @@
     const links = getSeriesLinks(element);
     if (links.length < 5 || links.length > MAX_ITEMS) return false;
 
-    if (!/\bproviders?\b/i.test(element.textContent || "")) return false;
+    const isBreakdown = isDomBreakdownChart(element);
+    if (!isBreakdown && !/\bproviders?\b/i.test(element.textContent || "")) return false;
 
     const values = getNumericTextValues(element);
     if (values.length < links.length) return false;
@@ -580,10 +659,14 @@
   function getDomBarDataset(element) {
     const links = getSeriesLinks(element);
     const values = getNumericTextValues(element);
-    const rowCount = Math.min(links.length, values.length, MAX_ITEMS);
+    const isBreakdown = isDomBreakdownChart(element);
+    const rowLimit = isBreakdown ? BREAKDOWN_ITEM_LIMIT : MAX_ITEMS;
+    const chartValues = isBreakdown
+      ? extractRankedScores(values, links.length).slice(0, rowLimit)
+      : values.slice(-Math.min(links.length, values.length, rowLimit));
+    const rowCount = Math.min(links.length, chartValues.length, rowLimit);
     if (rowCount < 2) return null;
 
-    const chartValues = values.slice(-rowCount);
     const rows = links.slice(0, rowCount)
       .map((link, index) => ({
         name: getSeriesName(link),
@@ -597,9 +680,40 @@
     return {
       title: findDomChartTitle(element),
       description: "",
-      valueKey: "normalized-dom",
+      valueKey: isBreakdown ? "normalized-dom-breakdown" : "normalized-dom",
+      variant: isBreakdown ? "breakdown" : "",
       rows
     };
+  }
+
+  function isDomBreakdownChart(element) {
+    if (!hasEvaluationLink(element)) return false;
+
+    const scope = element.parentElement;
+    if (!scope) return false;
+    return scope.querySelectorAll('a[href*="/evaluations/"]').length >= 3;
+  }
+
+  function hasEvaluationLink(element) {
+    return Boolean(element?.matches?.('a[href*="/evaluations/"]') || element?.querySelector?.(':scope > a[href*="/evaluations/"]'));
+  }
+
+  function extractRankedScores(values, totalRows) {
+    const candidates = values[0] === totalRows ? values.slice(1) : values;
+    const scores = [];
+    let expectedRank = 1;
+
+    for (const value of candidates) {
+      if (Number.isInteger(value) && value === expectedRank && scores.length === expectedRank - 1) {
+        expectedRank += 1;
+        continue;
+      }
+
+      scores.push(value);
+      if (scores.length >= totalRows) break;
+    }
+
+    return scores;
   }
 
   function getSeriesLinks(element) {
@@ -616,7 +730,10 @@
   }
 
   function getSeriesName(link) {
-    return (link.getAttribute("aria-label") || link.textContent || "").replace(/\s+/g, " ").trim();
+    return (link.getAttribute("aria-label") || link.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/^\d+\s*/, "");
   }
 
   function getNumericTextValues(element) {
@@ -701,13 +818,42 @@
   }
 
   function signature(dataset) {
-    return `${dataset.title}|${dataset.valueKey}|${dataset.rows.map((row) => `${row.name}:${row.value}`).join(",")}`;
+    return `${dataset.title}|${dataset.valueKey}|${dataset.variant || ""}|${dataset.rows.map((row) => `${row.name}:${row.value}`).join(",")}`;
+  }
+
+  function annotateBenchmarkHeadings() {
+    document.querySelectorAll("h1, h2, h3, h4, h5, h6, div, span, p").forEach((element) => {
+      if (element.closest(`.${VIEW_CLASS}`) || element.closest(`.${ORIGINAL_CLASS}`)) return;
+      if (element.children.length > 0) return;
+      if (!isVisibleElement(element)) return;
+
+      const title = cleanBenchmarkTitle(element.textContent || "");
+      const description = BENCHMARK_DESCRIPTIONS.get(title);
+      if (!description) return;
+
+      element.textContent = formatBenchmarkTitle(title, description);
+    });
+  }
+
+  function cleanBenchmarkTitle(title) {
+    return title
+      .replace(/\s+/g, " ")
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .trim();
+  }
+
+  function formatBenchmarkTitle(title, description = BENCHMARK_DESCRIPTIONS.get(cleanBenchmarkTitle(title))) {
+    const cleanTitle = cleanBenchmarkTitle(title);
+    return description ? `${cleanTitle} (${description})` : title;
   }
 
   function renderChart(dataset, id) {
     const max = Math.max(...dataset.rows.map((row) => Math.abs(row.value)), 1);
     const wrapper = document.createElement("section");
     wrapper.className = VIEW_CLASS;
+    if (dataset.variant === "breakdown") {
+      wrapper.classList.add(BREAKDOWN_CARD_CLASS);
+    }
     wrapper.dataset.aaVcFor = id;
     wrapper.dataset.aaVcSignature = signature(dataset);
 
@@ -716,7 +862,7 @@
 
     const title = document.createElement("h3");
     title.className = "aa-vc-title";
-    title.textContent = dataset.title;
+    title.textContent = formatBenchmarkTitle(dataset.title);
 
     const meta = document.createElement("div");
     meta.className = "aa-vc-meta";
@@ -741,6 +887,10 @@
 
     const rowMarker = document.createElement("div");
     rowMarker.className = "aa-vc-row";
+    const interestClass = getInterestModelClass(row.name);
+    if (interestClass) {
+      rowMarker.classList.add("aa-vc-row-interest", interestClass);
+    }
 
     const nameCell = document.createElement(row.href ? "a" : "div");
     nameCell.className = "aa-vc-name";
@@ -779,6 +929,11 @@
     return fragment;
   }
 
+  function getInterestModelClass(name) {
+    const matched = INTEREST_MODELS.find((model) => model.pattern.test(name || ""));
+    return matched ? `${INTEREST_MODEL_CLASS_PREFIX}${matched.className}` : "";
+  }
+
   function normalizedScore(row, index, dataset) {
     if (index === 0) return 100;
 
@@ -803,6 +958,9 @@
     document.querySelectorAll(`.${ORIGINAL_CLASS}`).forEach((node) => {
       node.classList.remove(ORIGINAL_CLASS);
       node.removeAttribute(ORIGINAL_ID_ATTR);
+    });
+    document.querySelectorAll(`.${BREAKDOWN_GRID_CLASS}`).forEach((node) => {
+      node.classList.remove(BREAKDOWN_GRID_CLASS);
     });
   }
 
