@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Artificial Analysis Vertical Charts",
   "description": "Replaces Artificial Analysis chart labels with vertical model lists and readable bars.",
-  "version": "0.1.0",
+  "version": "0.1.13",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["https://artificialanalysis.ai/*"],
   "action": {
@@ -13,6 +13,11 @@
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": ["https://artificialanalysis.ai/*"],
+      "js": ["redirect.js"],
+      "run_at": "document_start"
+    },
     {
       "matches": ["https://artificialanalysis.ai/*"],
       "js": ["content.js"],

@@ -11,10 +11,12 @@
   const BREAKDOWN_CARD_CLASS = "aa-vc-breakdown-card";
   const INTEREST_MODEL_CLASS_PREFIX = "aa-vc-interest-";
   const INTEREST_MODELS = [
-    { className: "gpt-55", pattern: /\bgpt-?5\.5\b/i },
-    { className: "claude-opus-47", pattern: /\bclaude\s+opus\s+4\.7\b/i },
-    { className: "glm-51", pattern: /\bglm-?5\.1\b/i },
-    { className: "mimo", pattern: /\bmimo\b/i }
+    { className: "opus", pattern: /\bopus\b/i },
+    { className: "fable", pattern: /\bfable\b/i },
+    { className: "claude", pattern: /\bclaude\b/i },
+    { className: "grok", pattern: /\bgrok\b/i },
+    { className: "qwen", pattern: /\bqwen\b/i },
+    { className: "deepseek", pattern: /\bdeepseek\b/i }
   ];
   const BENCHMARK_DESCRIPTIONS = new Map([
     ["GDPval-AA", "실제 지식 업무 수행 평가"],
@@ -848,7 +850,9 @@
   }
 
   function renderChart(dataset, id) {
-    const max = Math.max(...dataset.rows.map((row) => Math.abs(row.value)), 1);
+    const baseline = findOpusBaseline(dataset);
+    const scores = dataset.rows.map((row, index) => normalizedScore(row, index, dataset, baseline));
+    const maxScore = Math.max(...scores.map((score) => Math.abs(score)), 1);
     const wrapper = document.createElement("section");
     wrapper.className = VIEW_CLASS;
     if (dataset.variant === "breakdown") {
@@ -866,30 +870,45 @@
 
     const meta = document.createElement("div");
     meta.className = "aa-vc-meta";
-    meta.textContent = `${dataset.rows.length} items`;
+    meta.textContent = baseline
+      ? `${dataset.rows.length} items · ${shortBaselineLabel(baseline.name)}=100`
+      : `${dataset.rows.length} items · top=100`;
 
     head.append(title, meta);
 
     const body = document.createElement("div");
     body.className = "aa-vc-body";
 
+    const scoreTitle = baseline
+      ? `Normalized score: ${formatModelDisplayName(baseline.name)} = 100`
+      : "Normalized score: first ranked item = 100 (Opus not found)";
+
+    const highlightedInterestClasses = new Set();
     dataset.rows.forEach((row, index) => {
-      body.append(renderRow(row, index, max, dataset));
+      const interestClass = getInterestModelClass(row.name);
+      const highlight = Boolean(interestClass) && !highlightedInterestClasses.has(interestClass);
+      if (highlight) highlightedInterestClasses.add(interestClass);
+      body.append(renderRow(row, index, maxScore, scores[index], scoreTitle, interestClass));
     });
 
     wrapper.append(head, body);
     return wrapper;
   }
 
-  function renderRow(row, index, max, dataset) {
+  function renderRow(row, index, maxScore, score, scoreTitle, interestClass = "") {
     const fragment = document.createDocumentFragment();
-    const percent = Math.max(0.01, Math.min(1, normalizedScore(row, index, dataset) / 100)) * 100;
+    const percent = Math.max(0.01, Math.min(1, Math.abs(score) / maxScore)) * 100;
 
     const rowMarker = document.createElement("div");
     rowMarker.className = "aa-vc-row";
-    const interestClass = getInterestModelClass(row.name);
     if (interestClass) {
       rowMarker.classList.add("aa-vc-row-interest", interestClass);
+    }
+    if (isOpus48Name(row.name)) {
+      rowMarker.classList.add("aa-vc-row-opus48");
+    }
+    if (isOpus5Name(row.name)) {
+      rowMarker.classList.add("aa-vc-row-opus5");
     }
 
     const nameCell = document.createElement(row.href ? "a" : "div");
@@ -903,7 +922,7 @@
     indexNode.textContent = String(index + 1);
 
     const labelNode = document.createElement("span");
-    labelNode.textContent = row.name;
+    labelNode.textContent = formatModelDisplayName(row.name);
     nameCell.append(indexNode, labelNode);
 
     const valueCell = document.createElement("div");
@@ -919,8 +938,8 @@
 
     const number = document.createElement("span");
     number.className = "aa-vc-number";
-    number.title = "Normalized score, with the first ranked item set to 100";
-    number.textContent = formatScore(normalizedScore(row, index, dataset));
+    number.title = scoreTitle;
+    number.textContent = formatScore(score);
 
     valueCell.append(track, number);
     rowMarker.append(nameCell, valueCell);
@@ -934,19 +953,77 @@
     return matched ? `${INTEREST_MODEL_CLASS_PREFIX}${matched.className}` : "";
   }
 
-  function normalizedScore(row, index, dataset) {
-    if (index === 0) return 100;
+  function formatModelDisplayName(name) {
+    const original = String(name || "").replace(/\s+/g, " ").trim();
+    const stripped = original
+      .replace(/\bclaude\b[-_]?/gi, "")
+      .replace(/\s+/g, " ")
+      .replace(/^[-_\s]+|[-_\s]+$/g, "")
+      .trim();
+    return stripped || original;
+  }
 
-    const bestValue = dataset.rows[0]?.value;
-    if (!Number.isFinite(bestValue) || !Number.isFinite(row.value)) return 0;
-    if (bestValue === 0 || row.value === 0) return 0;
+  // Baseline priority: Opus 4.8 > Opus 5 > any Opus. Baseline score = 100.
+  function findOpusBaseline(dataset) {
+    const rows = dataset?.rows || [];
+    if (rows.length === 0) return null;
 
-    const rawScore =
-      Math.abs(row.value) <= Math.abs(bestValue)
-        ? (row.value / bestValue) * 100
-        : (bestValue / row.value) * 100;
+    const opus48 = rows.find((row) => isOpus48Name(row.name));
+    if (opus48) return opus48;
 
-    return Math.max(0, Math.min(100, rawScore));
+    const opus5 = rows.find((row) => isOpus5Name(row.name));
+    if (opus5) return opus5;
+
+    return rows.find((row) => isOpusName(row.name)) || null;
+  }
+
+  function isOpus48Name(name) {
+    const text = String(name || "");
+    // e.g. Claude Opus 4.8, Claude 4.8 Opus, claude-opus-4-8, Opus 4.8
+    return /opus/i.test(text) && /4(?:[.\s_-]?8)/.test(text);
+  }
+
+  function isOpus5Name(name) {
+    const text = String(name || "");
+    // e.g. Claude Opus 5, Claude 5 Opus, claude-opus-5, Opus 5.1
+    // "5" must be a standalone version token so "Claude Opus 4.5" is not matched.
+    return /opus/i.test(text) && /(?:^|[^0-9.])5(?:[.\s_-]|$)/.test(text);
+  }
+
+  function isOpusName(name) {
+    return /\bopus\b/i.test(String(name || ""));
+  }
+
+  function shortBaselineLabel(name) {
+    if (isOpus48Name(name)) return "Opus 4.8";
+    if (isOpus5Name(name)) return "Opus 5";
+    if (isOpusName(name)) return "Opus";
+    return "baseline";
+  }
+
+  function isHigherBetter(dataset) {
+    const first = dataset.rows[0]?.value;
+    const last = dataset.rows[dataset.rows.length - 1]?.value;
+    if (!Number.isFinite(first) || !Number.isFinite(last)) return true;
+    return Math.abs(first) >= Math.abs(last);
+  }
+
+  function normalizedScore(row, index, dataset, baseline = findOpusBaseline(dataset)) {
+    if (!Number.isFinite(row?.value)) return 0;
+
+    // Opus (prefer 4.8, then 5) = 100. Fallback: first ranked = 100.
+    const anchor = baseline || dataset.rows[0];
+    if (!anchor || !Number.isFinite(anchor.value) || anchor.value === 0) return 0;
+    if (row === anchor || row.name === anchor.name) return 100;
+    if (row.value === 0) return 0;
+
+    const higherBetter = isHigherBetter(dataset);
+    const rawScore = higherBetter
+      ? (row.value / anchor.value) * 100
+      : (anchor.value / row.value) * 100;
+
+    // Allow scores above 100 when a model beats Opus.
+    return Math.max(0, rawScore);
   }
 
   function formatScore(score) {
